@@ -192,6 +192,7 @@ body {
   display: flex;
   height: 100vh;
   overflow: hidden;
+  position: relative;
 }
 
 /* Sidebar Styles */
@@ -366,6 +367,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
+  position: relative;
 }
 
 .chat-header {
@@ -630,187 +632,23 @@ body {
   }
 }
 
-/* Mobile Chat Responsiveness */
-/* Mobile Chat Responsiveness - Fixed Version */
+/* Mobile Responsive Styles - FIXED */
 @media (max-width: 768px) {
-  /* General mobile adjustments */
+  /* General mobile setup */
   body {
     font-size: 15px;
-    overflow: hidden;
   }
   
   .app-container {
     position: relative;
-    flex-direction: column;
     overflow: hidden;
-    height: 100vh;
   }
   
-  /* Make sidebar full screen when active */
+  /* Sidebar handling */
   .sidebar {
     position: absolute;
     width: 100%;
-    height: 100vh;
-    z-index: 10;
-    left: 0;
-    top: 0;
-    transform: translateX(0);
-    transition: transform 0.3s ease;
-  }
-  
-  /* Hide sidebar for chat view */
-  .sidebar.hidden {
-    transform: translateX(-100%);
-  }
-  
-  /* Show chat area by default but position it off screen */
-  .chat-area {
-    width: 100%;
-    height: 100vh;
-    position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 5;
-    transform: translateX(100%);
-    transition: transform 0.3s ease;
-  }
-  
-  /* Bring chat area into view when active */
-  .chat-area.active {
-    transform: translateX(0);
-  }
-  
-  /* Back button in chat header */
-  .chat-header {
-    padding: 12px;
-    position: relative;
-  }
-  
-  .back-to-users {
-    display: block;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: var(--secondary-color);
-    border: none;
-    color: var(--primary-color);
-    font-size: 16px;
-    cursor: pointer;
-    margin-right: 10px;
-  }
-  
-  /* Adjust chat header layout with flex */
-  .chat-header {
-    display: flex;
-    align-items: center;
-  }
-  
-  /* Make messages wider on mobile */
-  .message {
-    max-width: 85%;
-    padding: 10px 14px;
-    margin-bottom: 12px;
-  }
-  
-  /* Improve message input for mobile */
-  .message-input-container {
-    padding: 10px;
-  }
-  
-  .message-input-container input {
-    padding: 10px 15px;
-    font-size: 14px;
-  }
-  
-  .btn-send {
-    width: 42px;
-    height: 42px;
-  }
-  
-  /* Mobile User Selection Experience */
-  .user-list {
-    overflow-y: auto;
-    padding-bottom: 20px;
-    -webkit-overflow-scrolling: touch;
-  }
-  
-  .user-item {
-    padding: 12px;
-    transition: background-color 0.2s;
-  }
-  
-  .user-item:active {
-    background-color: rgba(74, 111, 165, 0.2);
-  }
-  
-  /* Hide original mobile menu button */
-  .mobile-menu-btn {
-    display: none;
-  }
-  
-  /* Better visual separation between messages */
-  .message + .message {
-    margin-top: 5px;
-  }
-  
-  /* Fix chat container to take full height */
-  .chat-container {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-  }
-  
-  /* Fix message container to take available space */
-  .message-container {
-    flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  
-  /* Ensure fixed positioning for message input */
-  .message-input-container {
-    position: sticky;
-    bottom: 0;
-    width: 100%;
-    background: white;
-    border-top: 1px solid var(--border-color);
-  }
-  
-  /* Dark mode adjustments for mobile */
-  body.dark-mode .sidebar,
-  body.dark-mode .chat-area,
-  body.dark-mode .back-to-users {
-    background-color: #2a2a2a;
-  }
-  
-  body.dark-mode .message-input-container {
-    background-color: #2a2a2a;
-  }
-}
-
-/* Additional adjustments for very small screens */
-@media (max-width: 480px) {
-  .sidebar-header {
-    padding: 10px;
-  }
-  
-  .user-item .avatar {
-    width: 38px;
-    height: 38px;
-    font-size: 14px;
-  }
-  
-  .message {
-    max-width: 90%;
-    font-size: 14px;
-  }
-}
-@media (max-width: 768px) {
-  /* Make sure these rules are present and not overridden */
-  .sidebar {
-    position: absolute;
-    width: 100%;
-    height: 100vh;
+    height: 100%;
     z-index: 10;
     transform: translateX(0);
     transition: transform 0.3s ease;
@@ -820,12 +658,11 @@ body {
     transform: translateX(-100%);
   }
   
+  /* Chat area handling */
   .chat-area {
-    width: 100%;
-    height: 100vh;
     position: absolute;
-    top: 0;
-    left: 0;
+    width: 100%;
+    height: 100%;
     z-index: 5;
     transform: translateX(100%);
     transition: transform 0.3s ease;
@@ -835,12 +672,14 @@ body {
     transform: translateX(0);
   }
   
+  /* Back button for navigation */
   .back-to-users {
     display: flex;
     align-items: center;
     justify-content: center;
     width: 36px;
     height: 36px;
+    min-width: 36px;
     border-radius: 50%;
     background: var(--secondary-color);
     border: none;
@@ -849,53 +688,121 @@ body {
     cursor: pointer;
     margin-right: 10px;
   }
-}
-/* Replace the current mobile message input container styles with these */
-@media (max-width: 768px) {
-  /* Keep existing mobile styles */
   
-  /* Fix message input container for mobile */
+  /* Adjust chat header */
+  .chat-header {
+    padding: 10px;
+    display: flex;
+    align-items: center;
+  }
+  
+  /* FIX: Proper chat container structure */
+  .chat-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  
+  /* FIX: Message container with proper spacing */
+  .message-container {
+    flex: 1;
+    padding: 10px;
+    padding-bottom: 65px; /* Space for input */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* FIX: Message input container positioning */
   .message-input-container {
-    position: fixed;
+    position: absolute;
     bottom: 0;
     left: 0;
     width: 100%;
     padding: 10px;
     background-color: white;
-    border-top: 1px solid var(--border-color);
-    box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.05);
-    z-index: 15; /* Higher than the chat area z-index */
+    z-index: 20;
   }
   
-  /* Adjust message container to not overlap with input */
-  .message-container {
-    padding-bottom: 70px; /* Add padding to prevent messages from being hidden under input */
-    -webkit-overflow-scrolling: touch;
-  }
-  
-  /* Ensure form and input fit properly */
+  /* FIX: Input form layout */
   .message-input-container form {
-    width: 100%;
     display: flex;
     align-items: center;
+    width: 100%;
+  }
+  
+  /* FIX: Input field styling */
+  .message-input-container input {
+    flex: 1;
+    height: 40px;
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-size: 14px;
+    margin-right: 8px;
+  }
+  
+  /* FIX: Send button styling */
+  .btn-send {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Adjust message appearance */
+  .message {
+    max-width: 85%;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+  
+  /* User list improvements */
+  .user-item {
+    padding: 12px;
+  }
+  
+  .user-item .avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+  
+  /* Remove fixed mobile button */
+  .mobile-menu-btn {
+    display: none;
+  }
+}
+
+/* Very small screens */
+@media (max-width: 480px) {
+  .sidebar-header {
+    padding: 10px;
+  }
+  
+  .user-item .avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+  
+  .message {
+    max-width: 90%;
+    font-size: 13px;
+  }
+  
+  .message-input-container {
+    padding: 8px;
   }
   
   .message-input-container input {
-    height: 42px; /* Fixed height for better touch targets */
-    flex: 1;
-    padding: 8px 15px;
-    font-size: 15px;
+    padding: 8px 12px;
   }
   
-  /* Adjust send button for better touch experience */
   .btn-send {
-    min-width: 42px;
-    height: 42px;
-  }
-  
-  /* Ensure chat area allows scrolling */
-  .chat-area.active {
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    width: 38px;
+    height: 38px;
   }
 }
