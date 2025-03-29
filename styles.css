@@ -850,3 +850,52 @@ body {
     margin-right: 10px;
   }
 }
+/* Replace the current mobile message input container styles with these */
+@media (max-width: 768px) {
+  /* Keep existing mobile styles */
+  
+  /* Fix message input container for mobile */
+  .message-input-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: 10px;
+    background-color: white;
+    border-top: 1px solid var(--border-color);
+    box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.05);
+    z-index: 15; /* Higher than the chat area z-index */
+  }
+  
+  /* Adjust message container to not overlap with input */
+  .message-container {
+    padding-bottom: 70px; /* Add padding to prevent messages from being hidden under input */
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Ensure form and input fit properly */
+  .message-input-container form {
+    width: 100%;
+    display: flex;
+    align-items: center;
+  }
+  
+  .message-input-container input {
+    height: 42px; /* Fixed height for better touch targets */
+    flex: 1;
+    padding: 8px 15px;
+    font-size: 15px;
+  }
+  
+  /* Adjust send button for better touch experience */
+  .btn-send {
+    min-width: 42px;
+    height: 42px;
+  }
+  
+  /* Ensure chat area allows scrolling */
+  .chat-area.active {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
