@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FireChat - Web Chat Application</title>
+    <link rel="shortcut icon" href="chat.png" type="image/png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+</head>
+<body>
+    <!-- Authentication Container -->
+    <div class="auth-container" id="authContainer">
+        <div class="auth-box">
+            <div class="logo">
+                <i class="fas fa-comment-dots"></i>
+                <h1>FireChat</h1>
+            </div>
+            
+            <!-- Login Form -->
+            <div class="auth-form" id="loginForm">
+                <h2>Login</h2>
+                <p class="important-notice">උබලා දෙන්නා වෙනුවෙන් මම කාපු කට්ට දන්නවා මට ආපු Erros !</p>
+                <form id="loginFormElement">
+                    <div class="form-group">
+                        <label for="loginEmail">Email</label>
+                        <input type="email" id="loginEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">Password</label>
+                        <input type="password" id="loginPassword" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Login</button>
+                </form>
+                <p>Don't have an account? <a href="#" id="showSignup">Sign up</a></p>
+                <p><a href="#" id="showReset">Forgot password?</a></p>
+            </div>
+            
+            <!-- Signup Form -->
+            <div class="auth-form" id="signupForm" style="display: none;">
+                <h2>Create Account</h2>
+                <p class="important-notice">උබලා දෙන්නා වෙනුවෙන් මම කාපු කට්ට දන්නවා මට ආපු Erros !</p>
+                <form id="signupFormElement">
+                    <div class="form-group">
+                        <label for="signupName">Full Name</label>
+                        <input type="text" id="signupName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="signupEmail">Email</label>
+                        <input type="email" id="signupEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="signupPassword">Password</label>
+                        <input type="password" id="signupPassword" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Sign Up</button>
+                </form>
+                <p>Already have an account? <a href="#" id="showLogin">Login</a></p>
+            </div>
+            
+            <!-- Reset Password Form -->
+            <div class="auth-form" id="resetForm" style="display: none;">
+                <h2>Reset Password</h2>
+                <form id="resetFormElement">
+                    <div class="form-group">
+                        <label for="resetEmail">Email</label>
+                        <input type="email" id="resetEmail" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Send Reset Link</button>
+                </form>
+                <p><a href="#" id="backToLogin">Back to Login</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Chat Application Container -->
+    <div class="app-container" id="appContainer" style="display: none;">
+        <!-- Sidebar with user list -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fas fa-comment-dots"></i>
+                    <h2>FireChat</h2>
+                </div>
+                <div class="user-info" id="currentUserInfo">
+                    <!-- Current user info will be displayed here -->
+                </div>
+                <button id="logoutBtn" class="btn btn-small"><i class="fas fa-sign-out-alt"></i></button>
+            </div>
+            
+            <div class="user-search">
+                <input type="text" id="searchUsers" placeholder="Search users...">
+            </div>
+            
+            <div class="user-list" id="userList">
+                <!-- User list will be populated here -->
+            </div>
+        </div>
+        
+        <!-- Chat area -->
+        <div class="chat-area">
+            <div class="chat-placeholder" id="chatPlaceholder">
+                <i class="fas fa-comments"></i>
+                <p>Select a user to start chatting</p>
+            </div>
+            
+            <div class="chat-container" id="chatContainer" style="display: none;">
+                <div class="chat-header" id="chatHeader">
+                    <!-- Selected user info will be displayed here -->
+                </div>
+                
+                <div class="message-container" id="messageContainer">
+                    <!-- Messages will be displayed here -->
+                </div>
+                
+                <!-- Chat request acceptance section -->
+                <div class="chat-request" id="chatRequest" style="display: none;">
+                    <p>New chat request. Would you like to accept?</p>
+                    <div class="chat-request-actions">
+                        <button id="acceptChat" class="btn btn-small btn-success">Accept</button>
+                        <button id="declineChat" class="btn btn-small btn-danger">Decline</button>
+                    </div>
+                </div>
+                
+                <div class="message-input-container" id="messageInputContainer" style="display: none;">
+                    <form id="messageForm">
+                        <input type="text" id="messageInput" placeholder="Type your message...">
+                        <button type="submit" class="btn btn-send"><i class="fas fa-paper-plane"></i></button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.2/firebase-app-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.2/firebase-auth-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.2/firebase-firestore-compat.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
