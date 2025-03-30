@@ -49,6 +49,9 @@ let currentUser = null;
 let selectedUser = null;
 let currentChatId = null;
 let allUsers = [];
+let isMobile = window.innerWidth <= 768;
+let userStatusListeners = {}; // Map to store unsubscribe functions for user status listeners
+let lastOnlineTime = null;
 
 // Event Listeners for Authentication
 showSignupLink.addEventListener('click', () => {
@@ -107,6 +110,8 @@ signupFormElement.addEventListener('submit', (e) => {
               uid: userCredential.user.uid,
               name: name,
               email: email,
+              isOnline: true,
+              lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
               createdAt: firebase.firestore.FieldValue.serverTimestamp()
           });
       })
@@ -142,6 +147,7 @@ resetFormElement.addEventListener('submit', (e) => {
 
 // Logout Button
 logoutBtn.addEventListener('click', () => {
+  updateUserStatus(false);
   auth.signOut();
 });
 
@@ -169,10 +175,18 @@ auth.onAuthStateChanged((user) => {
                   
                   // Set user as online
                   updateUserStatus(true);
+
+                  // Setup heartbeat for online status
+                  setupOnlineHeartbeat();
               }
           });
   } else {
       // User is signed out
+      if (currentUser) {
+          // Clear last known online time
+          updateUserStatus(false);
+      }
+      
       currentUser = null;
       
       // Show auth container, hide app container
@@ -181,8 +195,29 @@ auth.onAuthStateChanged((user) => {
       
       // Reset UI
       resetUI();
+      
+      // Clear all status listeners
+      clearAllStatusListeners();
   }
 });
+
+// Setup heartbeat to maintain online status
+function setupOnlineHeartbeat() {
+  // Update online status every 5 minutes
+  const heartbeatInterval = setInterval(() => {
+    if (currentUser && currentUser.uid) {
+      db.collection('users').doc(currentUser.uid).update({
+        isOnline: true,
+        lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(error => console.error('Error updating heartbeat:', error));
+    } else {
+      clearInterval(heartbeatInterval);
+    }
+  }, 300000); // 5 minutes
+  
+  // Store the interval ID to clear it on logout
+  window.onlineHeartbeat = heartbeatInterval;
+}
 
 // Update current user info
 function updateCurrentUserInfo() {
@@ -205,10 +240,33 @@ function updateCurrentUserInfo() {
 function updateUserStatus(isOnline) {
   if (!currentUser || !currentUser.uid) return;
   
-  db.collection('users').doc(currentUser.uid).update({
+  // Use server timestamp for lastSeen
+  const lastSeen = firebase.firestore.FieldValue.serverTimestamp();
+  
+  // Store last online time to prevent race conditions
+  lastOnlineTime = new Date().getTime();
+  
+  return db.collection('users').doc(currentUser.uid).update({
       isOnline: isOnline,
-      lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+      lastSeen: lastSeen
   }).catch(error => console.error('Error updating status:', error));
+}
+
+// Clear status listeners
+function clearAllStatusListeners() {
+  Object.values(userStatusListeners).forEach(unsubscribe => {
+    if (typeof unsubscribe === 'function') {
+      unsubscribe();
+    }
+  });
+  
+  userStatusListeners = {};
+  
+  // Clear heartbeat interval
+  if (window.onlineHeartbeat) {
+    clearInterval(window.onlineHeartbeat);
+    window.onlineHeartbeat = null;
+  }
 }
 
 // Reset UI when logged out
@@ -223,11 +281,14 @@ function resetUI() {
 // Load all users
 function loadUsers() {
   // Listen for users collection changes
-  db.collection('users').where('uid', '!=', currentUser.uid)
+  const usersListener = db.collection('users').where('uid', '!=', currentUser.uid)
       .onSnapshot((snapshot) => {
           allUsers = [];
           snapshot.docs.forEach(doc => {
               allUsers.push(doc.data());
+              
+              // Set up real-time listener for each user's online status
+              setupUserStatusListener(doc.data().uid);
           });
           
           renderUserList(allUsers);
@@ -237,6 +298,9 @@ function loadUsers() {
               checkChatRequest();
           }
       });
+      
+  // Store the unsubscribe function
+  userStatusListeners['allUsers'] = usersListener;
       
   // Add search functionality
   searchUsers.addEventListener('input', (e) => {
@@ -254,6 +318,56 @@ function loadUsers() {
   });
 }
 
+// Setup individual user status listener
+function setupUserStatusListener(userId) {
+  // Skip if already listening
+  if (userStatusListeners[userId]) return;
+  
+  const statusListener = db.collection('users').doc(userId)
+    .onSnapshot((doc) => {
+      if (doc.exists) {
+        const userData = doc.data();
+        
+        // Find user in allUsers array and update status
+        const userIndex = allUsers.findIndex(u => u.uid === userId);
+        if (userIndex !== -1) {
+          allUsers[userIndex] = { ...allUsers[userIndex], ...userData };
+          
+          // Update UI if this user is rendered
+          updateUserStatusInUI(userId, userData.isOnline);
+          
+          // If this is the selected user, update chat header
+          if (selectedUser && selectedUser.uid === userId) {
+            selectedUser = { ...selectedUser, ...userData };
+            updateChatHeader(selectedUser);
+          }
+        }
+      }
+    }, error => {
+      console.error(`Error listening to user ${userId} status:`, error);
+    });
+  
+  // Store the unsubscribe function
+  userStatusListeners[userId] = statusListener;
+}
+
+// Update user status in UI
+function updateUserStatusInUI(userId, isOnline) {
+  const userItems = document.querySelectorAll('.user-item');
+  for (let i = 0; i < userItems.length; i++) {
+    const item = userItems[i];
+    const nameEl = item.querySelector('.name');
+    const statusEl = item.querySelector('.status');
+    
+    // Find user in allUsers
+    const user = allUsers.find(u => u.uid === userId);
+    if (user && nameEl && nameEl.textContent === user.name) {
+      statusEl.textContent = isOnline ? 'Online' : 'Offline';
+      break;
+    }
+  }
+}
+
 // Render user list
 function renderUserList(users) {
   userList.innerHTML = '';
@@ -261,6 +375,7 @@ function renderUserList(users) {
   users.forEach(user => {
       const userElement = document.createElement('div');
       userElement.classList.add('user-item');
+      userElement.dataset.uid = user.uid;
       
       // Check if this is the selected user
       if (selectedUser && selectedUser.uid === user.uid) {
@@ -301,7 +416,7 @@ function selectUser(user) {
   const userItems = document.querySelectorAll('.user-item');
   for (let i = 0; i < userItems.length; i++) {
       const item = userItems[i];
-      if (item.querySelector('.name').textContent === user.name) {
+      if (item.dataset.uid === user.uid) {
           item.classList.add('active');
           break;
       }
@@ -316,6 +431,12 @@ function selectUser(user) {
   
   // Check if chat exists
   checkChatExistence(user);
+  
+  // Handle mobile view
+  if (isMobile) {
+      toggleMobileView();
+      addBackButton();
+  }
 }
 
 // Update chat header with selected user info
@@ -323,7 +444,11 @@ function updateChatHeader(user) {
   const nameInitial = user.name ? user.name.charAt(0).toUpperCase() : '';
   const status = user.isOnline ? 'Online' : 'Offline';
   
+  // Create back button for mobile
+  const backButtonHtml = isMobile ? '<button class="back-to-users"><i class="fas fa-arrow-left"></i></button>' : '';
+  
   chatHeader.innerHTML = `
+      ${backButtonHtml}
       <div class="avatar">
           ${nameInitial}
       </div>
@@ -332,6 +457,21 @@ function updateChatHeader(user) {
           <div class="status">${status}</div>
       </div>
   `;
+  
+  // Add event listener to back button if on mobile
+  if (isMobile) {
+    const backButton = chatHeader.querySelector('.back-to-users');
+    if (backButton) {
+      backButton.addEventListener('click', () => {
+        const sidebar = document.querySelector('.sidebar');
+        const chatArea = document.querySelector('.chat-area');
+        
+        // Show sidebar, hide chat area
+        sidebar.classList.remove('hidden');
+        chatArea.classList.remove('active');
+      });
+    }
+  }
 }
 
 // Check if chat already exists between current user and selected user
@@ -368,7 +508,7 @@ function checkChatExistence(user) {
                   } else if (chatData.status === 'active') {
                       // Load messages
                       chatRequest.style.display = 'none';
-                      messageInputContainer.style.display = 'block';
+                      messageInputContainer.style.display = 'flex';  // Changed to flex for better mobile display
                       loadMessages(currentChatId);
                   } else if (chatData.status === 'declined') {
                       // Show declined message
@@ -376,6 +516,9 @@ function checkChatExistence(user) {
                       chatRequest.style.display = 'none';
                       messageInputContainer.style.display = 'none';
                   }
+                  
+                  // Listen for typing indicators
+                  listenForTypingIndicators(currentChatId);
                   
                   return;
               }
@@ -385,7 +528,7 @@ function checkChatExistence(user) {
               // No chat exists, show option to initiate chat
               messageContainer.innerHTML = '<div class="chat-status">Click to send a message and initiate a chat with this user.</div>';
               chatRequest.style.display = 'none';
-              messageInputContainer.style.display = 'block';
+              messageInputContainer.style.display = 'flex';  // Changed to flex for better mobile display
               
               // Create new chat with pending status
               createNewChat(user);
@@ -402,6 +545,7 @@ function createNewChat(user) {
       participants: [currentUser.uid, user.uid],
       initiator: currentUser.uid,
       status: 'pending',
+      typing: {},
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   };
@@ -409,6 +553,9 @@ function createNewChat(user) {
   db.collection('chats').add(chatData)
       .then(docRef => {
           currentChatId = docRef.id;
+          
+          // Listen for typing indicators
+          listenForTypingIndicators(currentChatId);
       })
       .catch(error => {
           console.error('Error creating chat:', error);
@@ -419,7 +566,12 @@ function createNewChat(user) {
 function checkChatRequest() {
   if (!currentChatId || !selectedUser) return;
   
-  db.collection('chats').doc(currentChatId)
+  // Stop existing listener if any
+  if (userStatusListeners['chatRequest']) {
+    userStatusListeners['chatRequest']();
+  }
+  
+  const chatRequestListener = db.collection('chats').doc(currentChatId)
     .onSnapshot((doc) => {
       if (doc.exists) {
         const chatData = doc.data();
@@ -439,7 +591,7 @@ function checkChatRequest() {
         } else if (chatData.status === 'active') {
           // Load messages
           chatRequest.style.display = 'none';
-          messageInputContainer.style.display = 'block';
+          messageInputContainer.style.display = 'flex';  // Changed to flex for better mobile display
           loadMessages(currentChatId);
         } else if (chatData.status === 'declined') {
           // Show declined message
@@ -449,6 +601,9 @@ function checkChatRequest() {
         }
       }
     });
+    
+  // Store unsubscribe function
+  userStatusListeners['chatRequest'] = chatRequestListener;
 }
 
 // Accept chat request
@@ -461,7 +616,7 @@ acceptChat.addEventListener('click', () => {
   })
   .then(() => {
     chatRequest.style.display = 'none';
-    messageInputContainer.style.display = 'block';
+    messageInputContainer.style.display = 'flex';  // Changed to flex for better mobile display
     loadMessages(currentChatId);
   })
   .catch(error => {
@@ -492,8 +647,13 @@ function loadMessages(chatId) {
   // Clear message container
   messageContainer.innerHTML = '';
   
+  // Stop existing listener if any
+  if (userStatusListeners['messages']) {
+    userStatusListeners['messages']();
+  }
+  
   // Listen for messages
-  db.collection('chats').doc(chatId)
+  const messagesListener = db.collection('chats').doc(chatId)
     .collection('messages')
     .orderBy('createdAt')
     .onSnapshot((snapshot) => {
@@ -508,6 +668,9 @@ function loadMessages(chatId) {
     }, (error) => {
       console.error('Error loading messages:', error);
     });
+    
+  // Store unsubscribe function
+  userStatusListeners['messages'] = messagesListener;
 }
 
 // Display a message
@@ -578,7 +741,28 @@ messageForm.addEventListener('submit', (e) => {
 window.addEventListener('beforeunload', () => {
   if (currentUser && currentUser.uid) {
     // Set user as offline
+    // Using a synchronous approach for beforeunload
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', 'https://www.googleapis.com/identitytoolkit/v3/relyingparty/setAccountInfo', false);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.send(JSON.stringify({
+      localId: currentUser.uid,
+      isOnline: false
+    }));
+    
+    // Also attempt the normal async approach
     updateUserStatus(false);
+  }
+});
+
+// Use visibilitychange to update online status when tab is hidden/visible
+document.addEventListener('visibilitychange', () => {
+  if (currentUser && currentUser.uid) {
+    if (document.visibilityState === 'hidden') {
+      updateUserStatus(false);
+    } else {
+      updateUserStatus(true);
+    }
   }
 });
 
@@ -604,7 +788,12 @@ messageInput.addEventListener('input', () => {
 
 // Listen for typing indicators
 function listenForTypingIndicators(chatId) {
-  db.collection('chats').doc(chatId)
+  // Stop existing listener if any
+  if (userStatusListeners['typing']) {
+    userStatusListeners['typing']();
+  }
+  
+  const typingListener = db.collection('chats').doc(chatId)
     .onSnapshot((doc) => {
       if (doc.exists) {
         const chatData = doc.data();
@@ -622,6 +811,9 @@ function listenForTypingIndicators(chatId) {
           }
           
           messageContainer.appendChild(typingIndicator);
+          
+          // Scroll to bottom
+          messageContainer.scrollTop = messageContainer.scrollHeight;
         } else {
           // Remove typing indicator
           const existingIndicator = document.querySelector('.typing-indicator');
@@ -631,92 +823,87 @@ function listenForTypingIndicators(chatId) {
         }
       }
     });
+    
+  // Store unsubscribe function
+  userStatusListeners['typing'] = typingListener;
 }
 
-// Add these variables to your existing global variables
-let isMobile = window.innerWidth <= 768;
-
-// Add this function after your existing functions
+// Mobile view functions
 function toggleMobileView() {
-    const sidebar = document.querySelector('.sidebar');
-    const chatArea = document.querySelector('.chat-area');
-    
-    if (isMobile) {
-        // Hide sidebar, show chat area
-        sidebar.classList.add('hidden');
-        chatArea.classList.add('active');
-    }
+  const sidebar = document.querySelector('.sidebar');
+  const chatArea = document.querySelector('.chat-area');
+  
+  if (isMobile) {
+    // Hide sidebar, show chat area
+    sidebar.classList.add('hidden');
+    chatArea.classList.add('active');
+  }
 }
 
 // Add back button to chat header for mobile
 function addBackButton() {
-    // Check if back button already exists
-    if (document.querySelector('.back-to-users')) return;
-    
-    const backButton = document.createElement('button');
-    backButton.classList.add('back-to-users');
-    backButton.innerHTML = '<i class="fas fa-arrow-left"></i>';
-    backButton.addEventListener('click', () => {
-        const sidebar = document.querySelector('.sidebar');
-        const chatArea = document.querySelector('.chat-area');
-        
-        // Show sidebar, hide chat area
-        sidebar.classList.remove('hidden');
-        chatArea.classList.remove('active');
-    });
-    
-    // Insert back button at the beginning of chat header
-    chatHeader.prepend(backButton);
-}
-
-// Update the selectUser function to handle mobile view
-// Modify your existing selectUser function
-function selectUser(user) {
-    selectedUser = user;
-    
-    // Update UI
-    document.querySelectorAll('.user-item').forEach(item => {
-        item.classList.remove('active');
-    });
-    
-    const userItems = document.querySelectorAll('.user-item');
-    for (let i = 0; i < userItems.length; i++) {
-        const item = userItems[i];
-        if (item.querySelector('.name').textContent === user.name) {
-            item.classList.add('active');
-            break;
-        }
-    }
-    
-    // Update chat header
-    updateChatHeader(user);
-    
-    // Show chat container, hide placeholder
-    chatPlaceholder.style.display = 'none';
-    chatContainer.style.display = 'flex';
-    
-    // Check if chat exists
-    checkChatExistence(user);
-    
-    // Handle mobile view
-    if (isMobile) {
-        toggleMobileView();
-        addBackButton();
-    }
+  // Back button is now added in updateChatHeader function
 }
 
 // Add window resize listener to update isMobile variable
 window.addEventListener('resize', () => {
-    isMobile = window.innerWidth <= 768;
+  const wasMobile = isMobile;
+  isMobile = window.innerWidth <= 768;
+  
+  // If device switched between mobile and desktop mode
+  if (wasMobile !== isMobile) {
+    // Update UI elements that depend on mobile state
+    if (selectedUser) {
+      updateChatHeader(selectedUser);
+    }
+    
+    // Reset mobile classes
+    if (!isMobile) {
+      const sidebar = document.querySelector('.sidebar');
+      const chatArea = document.querySelector('.chat-area');
+      
+      sidebar.classList.remove('hidden');
+      
+      if (!selectedUser) {
+        chatArea.classList.remove('active');
+      }
+    }
+  }
 });
+
+// Fix for iOS devices to ensure proper input display
+function fixIOSInputDisplay() {
+  // Check if iOS
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  
+  if (isIOS) {
+    // Add special class for iOS devices
+    document.body.classList.add('ios-device');
+    
+    // Fix for virtual keyboard issues
+    messageInput.addEventListener('focus', () => {
+      // Scroll the page after a short delay to ensure the input is visible
+      setTimeout(() => {
+        window.scrollTo(0, document.body.scrollHeight);
+        messageInputContainer.scrollIntoView({ behavior: 'smooth' });
+      }, 300);
+    });
+  }
+}
 
 // Initialize mobile classes on load
 document.addEventListener('DOMContentLoaded', () => {
-    isMobile = window.innerWidth <= 768;
-    
-    // Ensure chat area is hidden initially on mobile
-    if (isMobile) {
-        const chatArea = document.querySelector('.chat-area');
-        chatArea.classList.remove('active');
-    }
+  isMobile = window.innerWidth <= 768;
+  
+  // Ensure chat area is hidden initially on mobile
+  if (isMobile) {
+    const chatArea = document.querySelector('.chat-area');
+    chatArea.classList.remove('active');
+  }
+  
+  // Fix iOS input display issues
+  fixIOSInputDisplay();
+  
+  // Make sure message input container is displayed correctly on all devices
+  messageInputContainer.style.display = 'none'; // Initially hidden
 });
