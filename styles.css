@@ -670,6 +670,7 @@ body {
   
   .chat-area.active {
     transform: translateX(0);
+    z-index: 15;
   }
   
   /* Back button for navigation */
@@ -696,42 +697,44 @@ body {
     align-items: center;
   }
   
-  /* FIX: Proper chat container structure */
+  /* Proper chat container structure */
   .chat-container {
     height: 100%;
     display: flex;
     flex-direction: column;
     position: relative;
+    width: 100%;
   }
   
-  /* FIX: Message container with proper spacing */
+  /* Message container with proper spacing */
   .message-container {
     flex: 1;
     padding: 10px;
-    padding-bottom: 65px; /* Space for input */
+    padding-bottom: 70px; /* Increased space for input */
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
   
-  /* FIX: Message input container positioning */
+  /* Fix for message input container positioning */
   .message-input-container {
-    position: absolute;
+    position: fixed;
     bottom: 0;
     left: 0;
     width: 100%;
     padding: 10px;
     background-color: white;
     z-index: 20;
+    display: flex !important; /* Force display regardless of inline style */
   }
   
-  /* FIX: Input form layout */
+  /* Input form layout */
   .message-input-container form {
     display: flex;
     align-items: center;
     width: 100%;
   }
   
-  /* FIX: Input field styling */
+  /* Input field styling */
   .message-input-container input {
     flex: 1;
     height: 40px;
@@ -741,7 +744,7 @@ body {
     margin-right: 8px;
   }
   
-  /* FIX: Send button styling */
+  /* Send button styling */
   .btn-send {
     width: 40px;
     height: 40px;
@@ -774,6 +777,12 @@ body {
   .mobile-menu-btn {
     display: none;
   }
+  
+  /* Ensure the chat container elements are visible when active */
+  .chat-area.active #chatContainer,
+  .chat-area.active #messageInputContainer {
+    display: flex !important;
+  }
 }
 
 /* Very small screens */
@@ -804,5 +813,38 @@ body {
   .btn-send {
     width: 38px;
     height: 38px;
+  }
+}
+
+/* Additional fixes for ensuring chat input is always visible on mobile */
+@media (max-width: 768px) {
+  /* Make sure chat container is visible when chat is active */
+  .chat-area.active .chat-container {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  
+  /* Additional z-index to ensure input stays on top */
+  .message-input-container {
+    z-index: 50;
+  }
+  
+  /* Fix for iOS devices */
+  .app-container, .chat-area, .sidebar {
+    height: 100%;
+    height: -webkit-fill-available;
+  }
+  
+  /* Fix to ensure proper transitions */
+  .chat-area {
+    display: flex !important;
+    visibility: visible;
+    opacity: 1;
+  }
+  
+  /* Chat placeholder should be hidden when in active chat */
+  .chat-area.active .chat-placeholder {
+    display: none;
   }
 }
