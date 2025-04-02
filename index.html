@@ -49,7 +49,7 @@
             margin-bottom: 8px;
             color: #555;
         }
-        input[type="text"] {
+        input[type="text"], input[type="tel"] {
             width: 100%;
             padding: 12px;
             border: 1px solid #ddd;
@@ -92,6 +92,21 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+        #verification-section {
+            display: none;
+        }
+        .form-group.profile {
+            display: none;
+        }
+        #profile-section {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+        #profile-section h2 {
+            color: #4285f4;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
@@ -100,19 +115,33 @@
             <span>messageium.com</span>
         </div>
         <h1>SMS Verification</h1>
-        <div class="form-group">
-            <label for="phone">Phone Number:</label>
-            <input type="text" id="phone" placeholder="Enter your phone number" />
+        
+        <div id="phone-section">
+            <div class="form-group">
+                <label for="phone">Phone Number (with country code):</label>
+                <input type="tel" id="phone" placeholder="E.g., +12025550123" />
+            </div>
+            <div id="recaptcha-container"></div>
+            <button id="send-code">Send Verification Code</button>
         </div>
-        <div class="form-group">
-            <label for="code">Verification Code:</label>
-            <input type="text" id="code" placeholder="Enter verification code" />
+        
+        <div id="verification-section">
+            <div class="form-group">
+                <label for="verification-code">Verification Code:</label>
+                <input type="text" id="verification-code" placeholder="Enter the 6-digit code" />
+            </div>
+            <button id="verify-code">Verify Code</button>
         </div>
-        <div class="recaptcha-container">
-            <div class="g-recaptcha" data-sitekey="6LeMgl8qAAAAAKzlK3aO7M2QQJIxfoNj0oNQhf2N"></div>
+        
+        <div id="profile-section">
+            <h2>Set User Profile</h2>
+            <div class="form-group profile">
+                <label for="display-name">Display Name:</label>
+                <input type="text" id="display-name" placeholder="Enter your name" />
+            </div>
+            <button id="save-profile">Save Profile</button>
         </div>
-        <button id="send-code">Send Verification Code</button>
-        <button id="verify-code" style="margin-top: 10px; background-color: #34a853;">Verify Code</button>
+        
         <div id="result" class="result"></div>
     </div>
 
@@ -131,45 +160,143 @@
         
         // UI elements
         const phoneInput = document.getElementById('phone');
-        const codeInput = document.getElementById('code');
+        const verificationCodeInput = document.getElementById('verification-code');
+        const displayNameInput = document.getElementById('display-name');
         const sendCodeBtn = document.getElementById('send-code');
         const verifyCodeBtn = document.getElementById('verify-code');
+        const saveProfileBtn = document.getElementById('save-profile');
         const resultDiv = document.getElementById('result');
+        
+        const phoneSection = document.getElementById('phone-section');
+        const verificationSection = document.getElementById('verification-section');
+        const profileSection = document.getElementById('profile-section');
+        
+        // Declare variables for verification
+        let verificationId = '';
+        let recaptchaVerifier;
+        
+        // On page load, initialize reCAPTCHA
+        window.onload = function() {
+            recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+                'size': 'normal',
+                'callback': function(response) {
+                    // reCAPTCHA solved, enable the sendCodeBtn
+                    sendCodeBtn.disabled = false;
+                },
+                'expired-callback': function() {
+                    // Response expired. Ask user to solve reCAPTCHA again.
+                    sendCodeBtn.disabled = true;
+                }
+            });
+            recaptchaVerifier.render();
+        };
         
         // Send verification code
         sendCodeBtn.addEventListener('click', function() {
-            // Check if reCAPTCHA has been completed
-            const recaptchaResponse = grecaptcha.getResponse();
-            if (!recaptchaResponse) {
-                showMessage('Please complete the reCAPTCHA verification', 'error');
-                return;
-            }
-            
             const phoneNumber = phoneInput.value.trim();
             if (!phoneNumber) {
-                showMessage('Please enter a valid phone number', 'error');
+                showMessage('Please enter a valid phone number with country code', 'error');
                 return;
             }
             
-            // Here you would normally send the verification code
-            // For demo purposes, we'll simulate success
-            showMessage('Verification code sent to your phone', 'success');
+            // Show loading state
+            sendCodeBtn.textContent = 'Sending...';
+            sendCodeBtn.disabled = true;
             
-            // Reset reCAPTCHA for next use
-            grecaptcha.reset();
+            // Send SMS verification code using Firebase
+            firebase.auth().signInWithPhoneNumber(phoneNumber, recaptchaVerifier)
+                .then((confirmationResult) => {
+                    // SMS sent. Save the verification ID and show the code input.
+                    verificationId = confirmationResult.verificationId;
+                    
+                    // Hide phone section and show verification section
+                    phoneSection.style.display = 'none';
+                    verificationSection.style.display = 'block';
+                    
+                    showMessage('Verification code sent! Check your phone.', 'success');
+                })
+                .catch((error) => {
+                    // Error occurred during sending SMS
+                    sendCodeBtn.textContent = 'Send Verification Code';
+                    sendCodeBtn.disabled = false;
+                    
+                    // Reset reCAPTCHA
+                    recaptchaVerifier.render().then(function(widgetId) {
+                        grecaptcha.reset(widgetId);
+                    });
+                    
+                    showMessage('Error sending verification code: ' + error.message, 'error');
+                });
         });
         
         // Verify the code
         verifyCodeBtn.addEventListener('click', function() {
-            const code = codeInput.value.trim();
-            if (!code) {
-                showMessage('Please enter the verification code', 'error');
+            const code = verificationCodeInput.value.trim();
+            if (!code || code.length < 6) {
+                showMessage('Please enter the 6-digit verification code', 'error');
                 return;
             }
             
-            // Here you would verify the code with your backend
-            // For demo purposes, we'll simulate verification
-            showMessage('Phone number verified successfully!', 'success');
+            // Show loading state
+            verifyCodeBtn.textContent = 'Verifying...';
+            verifyCodeBtn.disabled = true;
+            
+            // Create the credential
+            const credential = firebase.auth.PhoneAuthProvider.credential(verificationId, code);
+            
+            // Sign in with the credential
+            firebase.auth().signInWithCredential(credential)
+                .then((userCredential) => {
+                    // User signed in successfully
+                    const user = userCredential.user;
+                    
+                    // Hide verification section and show profile section
+                    verificationSection.style.display = 'none';
+                    profileSection.style.display = 'block';
+                    document.querySelectorAll('.form-group.profile').forEach(el => el.style.display = 'block');
+                    
+                    showMessage('Phone number verified successfully!', 'success');
+                })
+                .catch((error) => {
+                    // Invalid code
+                    verifyCodeBtn.textContent = 'Verify Code';
+                    verifyCodeBtn.disabled = false;
+                    showMessage('Invalid verification code. Please try again.', 'error');
+                });
+        });
+        
+        // Save user profile
+        saveProfileBtn.addEventListener('click', function() {
+            const displayName = displayNameInput.value.trim();
+            if (!displayName) {
+                showMessage('Please enter your display name', 'error');
+                return;
+            }
+            
+            // Show loading state
+            saveProfileBtn.textContent = 'Saving...';
+            saveProfileBtn.disabled = true;
+            
+            // Get current user
+            const user = firebase.auth().currentUser;
+            
+            if (user) {
+                // Update display name
+                user.updateProfile({
+                    displayName: displayName
+                }).then(() => {
+                    showMessage('Profile updated successfully!', 'success');
+                    saveProfileBtn.textContent = 'Profile Saved';
+                }).catch((error) => {
+                    saveProfileBtn.textContent = 'Save Profile';
+                    saveProfileBtn.disabled = false;
+                    showMessage('Error updating profile: ' + error.message, 'error');
+                });
+            } else {
+                saveProfileBtn.textContent = 'Save Profile';
+                saveProfileBtn.disabled = false;
+                showMessage('No authenticated user found. Please verify your phone number first.', 'error');
+            }
         });
         
         // Helper function to show messages
@@ -183,6 +310,41 @@
                 resultDiv.style.display = 'none';
             }, 5000);
         }
+        
+        // Check if user is already signed in
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                // User is signed in
+                if (user.displayName) {
+                    // User profile already set
+                    phoneSection.style.display = 'none';
+                    verificationSection.style.display = 'none';
+                    
+                    // Show welcome message
+                    profileSection.style.display = 'block';
+                    profileSection.innerHTML = `
+                        <h2>Welcome, ${user.displayName}!</h2>
+                        <p>Your phone number: ${user.phoneNumber}</p>
+                        <button id="sign-out" style="margin-top: 20px; background-color: #ea4335;">Sign Out</button>
+                    `;
+                    
+                    // Add sign out functionality
+                    document.getElementById('sign-out').addEventListener('click', function() {
+                        firebase.auth().signOut().then(() => {
+                            location.reload();
+                        }).catch((error) => {
+                            showMessage('Error signing out: ' + error.message, 'error');
+                        });
+                    });
+                } else {
+                    // Phone verified but profile not set
+                    phoneSection.style.display = 'none';
+                    verificationSection.style.display = 'none';
+                    profileSection.style.display = 'block';
+                    document.querySelectorAll('.form-group.profile').forEach(el => el.style.display = 'block');
+                }
+            }
+        });
     </script>
 </body>
 </html>
