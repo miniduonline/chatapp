@@ -57,6 +57,23 @@
             box-sizing: border-box;
             font-size: 16px;
         }
+        .phone-input-container {
+            display: flex;
+        }
+        .country-code {
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-right: none;
+            border-radius: 4px 0 0 4px;
+            padding: 12px;
+            font-size: 16px;
+            color: #555;
+            flex-shrink: 0;
+        }
+        .phone-input {
+            border-radius: 0 4px 4px 0;
+            flex-grow: 1;
+        }
         .recaptcha-container {
             display: flex;
             justify-content: center;
@@ -75,6 +92,10 @@
         }
         button:hover {
             background-color: #3367d6;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
         }
         .result {
             margin-top: 20px;
@@ -107,6 +128,11 @@
             color: #4285f4;
             margin-bottom: 10px;
         }
+        .info-text {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -118,17 +144,21 @@
         
         <div id="phone-section">
             <div class="form-group">
-                <label for="phone">Phone Number (with country code):</label>
-                <input type="tel" id="phone" placeholder="E.g., +12025550123" />
+                <label for="phone">Sri Lankan Phone Number:</label>
+                <div class="phone-input-container">
+                    <span class="country-code">+94</span>
+                    <input type="tel" id="phone" class="phone-input" placeholder="7XXXXXXXX" maxlength="9" />
+                </div>
+                <p class="info-text">Enter your 9-digit Sri Lankan mobile number (e.g., 7XXXXXXXX)</p>
             </div>
             <div id="recaptcha-container"></div>
-            <button id="send-code">Send Verification Code</button>
+            <button id="send-code" disabled>Send Verification Code</button>
         </div>
         
         <div id="verification-section">
             <div class="form-group">
                 <label for="verification-code">Verification Code:</label>
-                <input type="text" id="verification-code" placeholder="Enter the 6-digit code" />
+                <input type="text" id="verification-code" placeholder="Enter the 6-digit code" maxlength="6" />
             </div>
             <button id="verify-code">Verify Code</button>
         </div>
@@ -180,8 +210,8 @@
             recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
                 'size': 'normal',
                 'callback': function(response) {
-                    // reCAPTCHA solved, enable the sendCodeBtn
-                    sendCodeBtn.disabled = false;
+                    // reCAPTCHA solved, enable the sendCodeBtn if phone validation passes
+                    validatePhoneInput();
                 },
                 'expired-callback': function() {
                     // Response expired. Ask user to solve reCAPTCHA again.
@@ -191,20 +221,43 @@
             recaptchaVerifier.render();
         };
         
+        // Validate Sri Lankan phone input and enable/disable the Send button
+        phoneInput.addEventListener('input', validatePhoneInput);
+        
+        function validatePhoneInput() {
+            const phoneNumber = phoneInput.value.trim();
+            const sriLankanMobileRegex = /^7\d{8}$/; // Sri Lankan mobile numbers start with 7 and have 9 digits
+            
+            if (sriLankanMobileRegex.test(phoneNumber) && grecaptcha.getResponse()) {
+                sendCodeBtn.disabled = false;
+            } else {
+                sendCodeBtn.disabled = true;
+            }
+            
+            // Format the number as user types
+            phoneInput.value = phoneNumber.replace(/[^0-9]/g, '').substring(0, 9);
+        }
+        
         // Send verification code
         sendCodeBtn.addEventListener('click', function() {
             const phoneNumber = phoneInput.value.trim();
-            if (!phoneNumber) {
-                showMessage('Please enter a valid phone number with country code', 'error');
+            
+            // Final validation before sending
+            const sriLankanMobileRegex = /^7\d{8}$/;
+            if (!sriLankanMobileRegex.test(phoneNumber)) {
+                showMessage('Please enter a valid Sri Lankan mobile number (starting with 7, 9 digits).', 'error');
                 return;
             }
+            
+            // Format the number with international code for Firebase
+            const formattedPhoneNumber = '+94' + phoneNumber;
             
             // Show loading state
             sendCodeBtn.textContent = 'Sending...';
             sendCodeBtn.disabled = true;
             
             // Send SMS verification code using Firebase
-            firebase.auth().signInWithPhoneNumber(phoneNumber, recaptchaVerifier)
+            firebase.auth().signInWithPhoneNumber(formattedPhoneNumber, recaptchaVerifier)
                 .then((confirmationResult) => {
                     // SMS sent. Save the verification ID and show the code input.
                     verificationId = confirmationResult.verificationId;
@@ -227,6 +280,11 @@
                     
                     showMessage('Error sending verification code: ' + error.message, 'error');
                 });
+        });
+        
+        // Format verification code input to numbers only
+        verificationCodeInput.addEventListener('input', function() {
+            this.value = this.value.replace(/[^0-9]/g, '').substring(0, 6);
         });
         
         // Verify the code
@@ -287,6 +345,11 @@
                 }).then(() => {
                     showMessage('Profile updated successfully!', 'success');
                     saveProfileBtn.textContent = 'Profile Saved';
+                    
+                    // After a short delay, show the welcome screen
+                    setTimeout(() => {
+                        showWelcomeScreen(user);
+                    }, 1000);
                 }).catch((error) => {
                     saveProfileBtn.textContent = 'Save Profile';
                     saveProfileBtn.disabled = false;
@@ -311,6 +374,31 @@
             }, 5000);
         }
         
+        // Function to show welcome screen
+        function showWelcomeScreen(user) {
+            // Format phone number for display
+            let phoneDisplay = user.phoneNumber;
+            if (phoneDisplay && phoneDisplay.startsWith('+94')) {
+                phoneDisplay = '+94 ' + phoneDisplay.substring(3);
+            }
+            
+            // Show welcome message
+            profileSection.innerHTML = `
+                <h2>Welcome, ${user.displayName}!</h2>
+                <p>Your phone number: ${phoneDisplay}</p>
+                <button id="sign-out" style="margin-top: 20px; background-color: #ea4335;">Sign Out</button>
+            `;
+            
+            // Add sign out functionality
+            document.getElementById('sign-out').addEventListener('click', function() {
+                firebase.auth().signOut().then(() => {
+                    location.reload();
+                }).catch((error) => {
+                    showMessage('Error signing out: ' + error.message, 'error');
+                });
+            });
+        }
+        
         // Check if user is already signed in
         firebase.auth().onAuthStateChanged((user) => {
             if (user) {
@@ -319,23 +407,10 @@
                     // User profile already set
                     phoneSection.style.display = 'none';
                     verificationSection.style.display = 'none';
-                    
-                    // Show welcome message
                     profileSection.style.display = 'block';
-                    profileSection.innerHTML = `
-                        <h2>Welcome, ${user.displayName}!</h2>
-                        <p>Your phone number: ${user.phoneNumber}</p>
-                        <button id="sign-out" style="margin-top: 20px; background-color: #ea4335;">Sign Out</button>
-                    `;
                     
-                    // Add sign out functionality
-                    document.getElementById('sign-out').addEventListener('click', function() {
-                        firebase.auth().signOut().then(() => {
-                            location.reload();
-                        }).catch((error) => {
-                            showMessage('Error signing out: ' + error.message, 'error');
-                        });
-                    });
+                    // Show welcome screen
+                    showWelcomeScreen(user);
                 } else {
                     // Phone verified but profile not set
                     phoneSection.style.display = 'none';
